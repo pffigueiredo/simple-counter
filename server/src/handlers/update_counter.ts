@@ -1,30 +1,58 @@
 
+import { db } from '../db';
+import { countersTable } from '../db/schema';
 import { type UpdateCounterInput, type Counter } from '../schema';
+import { eq } from 'drizzle-orm';
 
 export async function updateCounter(input: UpdateCounterInput): Promise<Counter> {
-    // This is a placeholder declaration! Real code should be implemented here.
-    // The goal of this handler is updating the counter based on the operation:
-    // - increment: add 1 to current value
-    // - decrement: subtract 1 from current value  
-    // - reset: set value to 0
-    // Should fetch current counter, apply operation, and return updated counter.
+  try {
+    // Get the current counter (assuming there's only one counter with id=1)
+    // If no counter exists, create one with default value 0
+    let currentCounter = await db.select()
+      .from(countersTable)
+      .where(eq(countersTable.id, 1))
+      .execute();
+
+    let currentValue = 0;
     
-    let newValue = 0;
-    switch (input.operation) {
-        case 'increment':
-            newValue = 1; // Placeholder - should get current value + 1
-            break;
-        case 'decrement':
-            newValue = -1; // Placeholder - should get current value - 1
-            break;
-        case 'reset':
-            newValue = 0;
-            break;
+    if (currentCounter.length === 0) {
+      // Create initial counter if it doesn't exist
+      const newCounter = await db.insert(countersTable)
+        .values({ value: 0 })
+        .returning()
+        .execute();
+      currentValue = newCounter[0].value;
+    } else {
+      currentValue = currentCounter[0].value;
     }
-    
-    return Promise.resolve({
-        id: 1,
+
+    // Calculate new value based on operation
+    let newValue: number;
+    switch (input.operation) {
+      case 'increment':
+        newValue = currentValue + 1;
+        break;
+      case 'decrement':
+        newValue = currentValue - 1;
+        break;
+      case 'reset':
+        newValue = 0;
+        break;
+    }
+
+    // Update the counter with new value
+    const result = await db.update(countersTable)
+      .set({ 
         value: newValue,
         updated_at: new Date()
-    } as Counter);
+      })
+      .where(eq(countersTable.id, 1))
+      .returning()
+      .execute();
+
+    return result[0];
+  } catch (error) {
+    console.error('Counter update failed:', error);
+    throw error;
+  }
 }
